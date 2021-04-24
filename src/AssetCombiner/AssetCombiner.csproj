@@ -1,12 +1,3 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
-    <RootNamespace>Neo.SmartContract</RootNamespace>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Neo.SmartContract.Framework" Version="3.0.0-CI00309" />
-  </ItemGroup>
-
 </Project>
