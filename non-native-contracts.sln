@@ -6,6 +6,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{94585B31-D1E
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NameService", "src\NameService\NameService.csproj", "{B0417296-C23C-4B6F-BB22-31BF91C3A445}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AssetCombiner", "src\AssetCombiner\AssetCombiner.csproj", "{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -16,12 +18,17 @@ Global
 		{B0417296-C23C-4B6F-BB22-31BF91C3A445}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B0417296-C23C-4B6F-BB22-31BF91C3A445}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B0417296-C23C-4B6F-BB22-31BF91C3A445}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{B0417296-C23C-4B6F-BB22-31BF91C3A445} = {94585B31-D1EB-4801-98F8-97EA02E84562}
+		{B8B3B841-D0AA-4D62-AE02-3DB3EEF2332E} = {94585B31-D1EB-4801-98F8-97EA02E84562}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {87F7C876-B7C6-45B5-B919-8CB3CA347982}
