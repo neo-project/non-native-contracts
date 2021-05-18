@@ -475,8 +475,8 @@ namespace Neo.SmartContract
             if (length < 3 || length > 8) return false;
             string fragment = fragments[0];
             if (fragment.Length != 4) return false;
-            ushort firstNumber = (ushort)StdLib.Atoi(fragment, 16);
-            if (firstNumber < 0x2000 || firstNumber == 0x2002 || firstNumber == 0x3ffe || firstNumber > 0x3fff)
+            ushort number = (ushort)StdLib.Atoi(fragment, 16);
+            if (number < 0x2000 || number == 0x2002 || number == 0x3ffe || number > 0x3fff)
                 return false;
             bool hasEmpty = false;
             for (int i = 1; i < length; i++)
