@@ -473,11 +473,15 @@ namespace Neo.SmartContract
             string[] fragments = StdLib.StringSplit(ipv6, ":");
             length = fragments.Length;
             if (length < 3 || length > 8) return false;
-            if (fragments[0] != "2001") return false;
+            string fragment = fragments[0];
+            if (fragment.Length != 4) return false;
+            ushort firstNumber = (ushort)StdLib.Atoi(fragment, 16);
+            if (firstNumber < 0x2000 || firstNumber == 0x2002 || firstNumber == 0x3ffe || firstNumber > 0x3fff)
+                return false;
             bool hasEmpty = false;
             for (int i = 1; i < length; i++)
             {
-                string fragment = fragments[i];
+                fragment = fragments[i];
                 if (fragment.Length == 0)
                 {
                     if (i < length - 1 && hasEmpty) return false;
