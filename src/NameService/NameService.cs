@@ -513,20 +513,7 @@ namespace Neo.SmartContract
             if (number == 0x2001)
             {
                 number = numbers[1];
-                if (number < 0x200) return false;
-                if (number == 0xdb8)
-                {
-                    bool allZero = true;
-                    for (int i = 2; i < 8; i++)
-                    {
-                        if (numbers[i] != 0)
-                        {
-                            allZero = false;
-                            break;
-                        }
-                    }
-                    if (allZero) return false;
-                }
+                if (number < 0x200 || number == 0xdb8) return false;
             }
             return true;
         }
