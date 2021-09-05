@@ -38,15 +38,18 @@ namespace Neo.SmartContract
             ContractManagement.Update(nef, manifest);
         }
 
-        public static ByteString Mint(string name)
+        public static ByteString Mint(string name, string category)
         {
+            if (name is null || name.Length == 0) throw new Exception("The name is required.");
+            if (category is null) throw new Exception("The category cannot be null.");
             Transaction tx = (Transaction)Runtime.ScriptContainer;
             ByteString tokenId = NewTokenId();
             Mint(tokenId, new ContainerState
             {
                 Owner = tx.Sender,
                 Name = name,
-                Maker = tx.Sender
+                Maker = tx.Sender,
+                Category = category
             });
             return tokenId;
         }
