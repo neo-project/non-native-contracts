@@ -91,6 +91,8 @@ namespace Neo.SmartContract
         {
             if (containerId is null) ExecutionEngine.Abort();
             if (tokenId == containerId) ExecutionEngine.Abort();
+            UInt160 hash = Runtime.CallingScriptHash;
+            if (ContractManagement.GetContract(hash) is null) ExecutionEngine.Abort();
             StorageContext context = Storage.CurrentContext;
             StorageMap containerMap = new(context, Prefix_Token);
             StorageMap assetMap = new(context, Prefix_Asset);
@@ -99,7 +101,7 @@ namespace Neo.SmartContract
             ByteString assetId = NewAssetId();
             AssetState asset = new()
             {
-                Hash = Runtime.CallingScriptHash,
+                Hash = hash,
                 Amount = amount,
                 TokenId = tokenId
             };
@@ -109,6 +111,8 @@ namespace Neo.SmartContract
         public static void OnNEP17Payment(UInt160 from, BigInteger amount, ByteString containerId)
         {
             if (containerId is null) ExecutionEngine.Abort();
+            UInt160 hash = Runtime.CallingScriptHash;
+            if (ContractManagement.GetContract(hash) is null) ExecutionEngine.Abort();
             StorageContext context = Storage.CurrentContext;
             StorageMap containerMap = new(context, Prefix_Token);
             StorageMap assetMap = new(context, Prefix_Asset);
@@ -117,7 +121,7 @@ namespace Neo.SmartContract
             ByteString assetId = NewAssetId();
             AssetState asset = new()
             {
-                Hash = Runtime.CallingScriptHash,
+                Hash = hash,
                 Amount = amount,
                 TokenId = null
             };
