@@ -285,7 +285,7 @@ namespace Neo.SmartContract
             token.EnsureNotExpired();
             token.CheckAdmin();
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
-            recordMap.Put(recordKey, new RecordState
+            recordMap.PutObject(recordKey, new RecordState
             {
                 Name = name,
                 Type = type,
@@ -306,7 +306,8 @@ namespace Neo.SmartContract
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
             token.EnsureNotExpired();
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
-            return recordMap.Get<RecordState>(recordKey).Data;
+            RecordState record = (RecordState)recordMap.GetObject(recordKey);
+            return record.Data;
         }
 
         [Safe]
