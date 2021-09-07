@@ -505,7 +505,7 @@ namespace Neo.SmartContract
                 {
                     if (fragment.Length > 4) return false;
                     int index = hasEmpty ? i + 8 - length : i;
-                    numbers[index] = (ushort)StdLib.Atoi(fragment, 16);
+                    numbers[index] = (ushort)(short)StdLib.Atoi(fragment, 16);
                 }
             }
             if (length < 8 && !isCompressed) return false;
