@@ -265,19 +265,19 @@ namespace Neo.SmartContract
             switch (type)
             {
                 case RecordType.A:
-                    if (!CheckIPv4(data)) throw new FormatException();
+                    if (!CheckIPv4(data)) throw new FormatException("The format of the A record is incorrect.");
                     break;
                 case RecordType.CNAME:
-                    if (SplitAndCheck(data, true) is null) throw new FormatException();
+                    if (SplitAndCheck(data, true) is null) throw new FormatException("The format of the CNAME record is incorrect.");
                     break;
                 case RecordType.TXT:
-                    if (data.Length > 255) throw new FormatException();
+                    if (data.Length > 255) throw new FormatException("The format of the TXT record is incorrect.");
                     break;
                 case RecordType.AAAA:
-                    if (!CheckIPv6(data)) throw new FormatException();
+                    if (!CheckIPv6(data)) throw new FormatException("The format of the AAAA record is incorrect.");
                     break;
                 default:
-                    throw new InvalidOperationException();
+                    throw new InvalidOperationException("The record type is not supported.");
             }
             string tokenId = name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
             ByteString tokenKey = GetKey(tokenId);
@@ -328,7 +328,7 @@ namespace Neo.SmartContract
 
         private static string Resolve(string name, RecordType type, int redirect)
         {
-            if (redirect < 0) throw new InvalidOperationException();
+            if (redirect < 0) throw new InvalidOperationException("Too many redirections.");
             string cname = null;
             foreach (var (key, value) in GetRecords(name))
             {
