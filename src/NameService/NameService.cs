@@ -492,28 +492,26 @@ namespace Neo.SmartContract
             length = fragments.Length;
             if (length < 3 || length > 8) return false;
             ushort[] numbers = new ushort[8];
-            bool hasEmpty = false, isCompressed = false;
+            bool isCompressed = false;
             for (int i = 0; i < length; i++)
             {
                 string fragment = fragments[i];
                 if (fragment.Length == 0)
                 {
-                    isCompressed = true;
                     if (i == 0)
                     {
+                        if (fragments[1].Length != 0) return false;
                         numbers[0] = 0;
                     }
                     else if (i == length - 1)
                     {
+                        if (fragments[i - 1].Length != 0) return false;
                         numbers[7] = 0;
-                    }
-                    else if (hasEmpty)
-                    {
-                        return false;
                     }
                     else
                     {
-                        hasEmpty = true;
+                        if (isCompressed) return false;
+                        isCompressed = true;
                         int endIndex = 9 - length + i;
                         for (int j = i; j < endIndex; j++)
                             numbers[j] = 0;
@@ -522,7 +520,7 @@ namespace Neo.SmartContract
                 else
                 {
                     if (fragment.Length > 4) return false;
-                    int index = hasEmpty ? i + 8 - length : i;
+                    int index = isCompressed ? i + 8 - length : i;
                     numbers[index] = (ushort)(short)StdLib.Atoi(fragment, 16);
                 }
             }
