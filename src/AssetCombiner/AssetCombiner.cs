@@ -28,6 +28,7 @@ namespace Neo.SmartContract
             StorageMap containerMap = new(Storage.CurrentContext, Prefix_Token);
             ContainerState token = (ContainerState)StdLib.Deserialize(containerMap[tokenId]);
             Map<string, object> map = base.Properties(tokenId);
+            map["category"] = token.Category;
             map["maker"] = token.Maker;
             return map;
         }
@@ -41,15 +42,17 @@ namespace Neo.SmartContract
         public static ByteString Mint(string name, string category)
         {
             if (name is null || name.Length == 0) throw new Exception("The name is required.");
+            if (name.Length > 256) throw new Exception("The name is too long.");
             if (category is null) throw new Exception("The category cannot be null.");
+            if (category.Length > 256) throw new Exception("The category is too long.");
             Transaction tx = (Transaction)Runtime.ScriptContainer;
             ByteString tokenId = NewTokenId();
             Mint(tokenId, new ContainerState
             {
                 Owner = tx.Sender,
                 Name = name,
-                Maker = tx.Sender,
-                Category = category
+                Category = category,
+                Maker = tx.Sender
             });
             return tokenId;
         }
