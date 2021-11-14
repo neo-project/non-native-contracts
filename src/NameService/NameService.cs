@@ -25,7 +25,7 @@ namespace Neo.SmartContract
         private const byte Prefix_TotalSupply = 0x00;
         private const byte Prefix_Balance = 0x01;
         private const byte Prefix_AccountToken = 0x02;
-        private const byte Prefix_RegisterPrice = 0x10;
+        private const byte Prefix_RegisterPrice = 0x11;
         private const byte Prefix_Root = 0x20;
         private const byte Prefix_Name = 0x21;
         private const byte Prefix_Record = 0x22;
@@ -151,17 +151,26 @@ namespace Neo.SmartContract
             return rootMap.Find(FindOptions.KeysOnly | FindOptions.RemovePrefix);
         }
 
-        public static void SetPrice(long price)
+        public static void SetPrice(long[] priceList)
         {
             CheckCommittee();
-            if (price <= 0 || price > 10000_00000000) throw new Exception("The price is out of range.");
-            Storage.Put(Storage.CurrentContext, new byte[] { Prefix_RegisterPrice }, price);
+            if (priceList.Length == 0)
+                throw new Exception("The price list must contain at least 1 item.");
+            if (priceList[0] == -1)
+                throw new Exception("The price is out of range.");
+            foreach (long price in priceList)
+                if (price < -1 || price > 10000_00000000)
+                    throw new Exception("The price is out of range.");
+            Storage.Put(Storage.CurrentContext, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(priceList));
         }
 
         [Safe]
-        public static long GetPrice()
+        public static long GetPrice(byte length)
         {
-            return (long)(BigInteger)Storage.Get(Storage.CurrentContext, new byte[] { Prefix_RegisterPrice });
+            if (length == 0) throw new Exception("Length cannot be 0.");
+            long[] priceList = (long[])StdLib.Deserialize(Storage.Get(Storage.CurrentContext, new byte[] { Prefix_RegisterPrice }));
+            if (length >= priceList.Length) length = 0;
+            return priceList[length];
         }
 
         [Safe]
@@ -173,6 +182,8 @@ namespace Neo.SmartContract
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
+            long price = GetPrice((byte)fragments[0].Length);
+            if (price < 0) return false;
             ByteString buffer = nameMap[GetKey(name)];
             if (buffer is null) return true;
             NameState token = (NameState)StdLib.Deserialize(buffer);
@@ -190,7 +201,11 @@ namespace Neo.SmartContract
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("No authorization.");
-            Runtime.BurnGas(GetPrice());
+            long price = GetPrice((byte)fragments[0].Length);
+            if (price < 0)
+                CheckCommittee();
+            else
+                Runtime.BurnGas(price);
             ByteString tokenKey = GetKey(name);
             ByteString buffer = nameMap[tokenKey];
             NameState token;
@@ -232,7 +247,13 @@ namespace Neo.SmartContract
         public static ulong Renew(string name)
         {
             if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
-            Runtime.BurnGas(GetPrice());
+            string[] fragments = SplitAndCheck(name, false);
+            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
+            long price = GetPrice((byte)fragments[0].Length);
+            if (price < 0)
+                CheckCommittee();
+            else
+                Runtime.BurnGas(price);
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
             ByteString tokenKey = GetKey(name);
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
@@ -379,7 +400,14 @@ namespace Neo.SmartContract
             if (update) return;
             StorageContext context = Storage.CurrentContext;
             Storage.Put(context, new byte[] { Prefix_TotalSupply }, 0);
-            Storage.Put(context, new byte[] { Prefix_RegisterPrice }, 10_00000000);
+            Storage.Put(context, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(new long[]
+            {
+                1_00000000, // Prices for all other length domain names.
+                -1,         // Domain names with a length of 1 are not open for registration by default.
+                -1,         // Domain names with a length of 2 are not open for registration by default.
+                -1,         // Domain names with a length of 3 are not open for registration by default.
+                -1,         // Domain names with a length of 4 are not open for registration by default.
+            }));
         }
 
         private static void CheckCommittee()
@@ -435,7 +463,7 @@ namespace Neo.SmartContract
             if (length < 3 || length > NameMaxLength) return null;
             string[] fragments = StdLib.StringSplit(name, ".");
             length = fragments.Length;
-            if (length < 2) return null;
+            if (length < 2 || length > 8) return null;
             if (length > 2 && !allowMultipleFragments) return null;
             for (int i = 0; i < length; i++)
                 if (!CheckFragment(fragments[i], i == length - 1))
