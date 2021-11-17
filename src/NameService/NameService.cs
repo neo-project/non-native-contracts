@@ -60,6 +60,7 @@ namespace Neo.SmartContract
             Map<string, object> map = new();
             map["name"] = token.Name;
             map["expiration"] = token.Expiration;
+            map["admin"] = token.Admin;
             return map;
         }
 
