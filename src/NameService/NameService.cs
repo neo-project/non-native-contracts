@@ -19,9 +19,12 @@ namespace Neo.SmartContract
     public sealed class NameService : Framework.SmartContract
     {
         public delegate void OnTransferDelegate(UInt160 from, UInt160 to, BigInteger amount, ByteString tokenId);
+        public delegate void OnSetAdminDelegate(string name, UInt160 oldAdmin, UInt160 newAdmin);
 
         [DisplayName("Transfer")]
         public static event OnTransferDelegate OnTransfer;
+        [DisplayName("SetAdmin")]
+        public static event OnSetAdminDelegate OnSetAdmin;
 
         private const byte Prefix_TotalSupply = 0x00;
         private const byte Prefix_Balance = 0x01;
@@ -274,8 +277,10 @@ namespace Neo.SmartContract
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
             token.EnsureNotExpired();
             if (!Runtime.CheckWitness(token.Owner)) throw new InvalidOperationException("No authorization.");
+            UInt160 old = token.Admin;
             token.Admin = admin;
             nameMap[tokenKey] = StdLib.Serialize(token);
+            OnSetAdmin(name, old, admin);
         }
 
         public static void SetRecord(string name, RecordType type, string data)
