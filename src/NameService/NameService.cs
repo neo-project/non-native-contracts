@@ -36,6 +36,7 @@ namespace Neo.SmartContract
 
         private const int NameMaxLength = 255;
         private const ulong OneYear = 365ul * 24 * 3600 * 1000;
+        private const ulong TenYears = OneYear * 10;
 
         [Safe]
         public static string Symbol() => "NNS";
@@ -251,6 +252,12 @@ namespace Neo.SmartContract
 
         public static ulong Renew(string name)
         {
+            return Renew(name, 1);
+        }
+
+        public static ulong Renew(string name, byte years)
+        {
+            if (years < 1 || years > 10) throw new ArgumentException("The argument `years` is out of range.");
             if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
@@ -258,12 +265,14 @@ namespace Neo.SmartContract
             if (price < 0)
                 CheckCommittee();
             else
-                Runtime.BurnGas(price);
+                Runtime.BurnGas(price * years);
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
             ByteString tokenKey = GetKey(name);
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
             token.EnsureNotExpired();
-            token.Expiration += OneYear;
+            token.Expiration += OneYear * years;
+            if (token.Expiration > Runtime.Time + TenYears)
+                throw new ArgumentException("You can't renew a domain name for more than 10 years in total.");
             nameMap[tokenKey] = StdLib.Serialize(token);
             return token.Expiration;
         }
