@@ -33,6 +33,7 @@ namespace Neo.SmartContract
         private const byte Prefix_Root = 0x20;
         private const byte Prefix_Name = 0x21;
         private const byte Prefix_Record = 0x22;
+        private const byte Prefix_ReverseRecord = 0x23;
 
         private const int NameMaxLength = 255;
         private const ulong OneYear = 365ul * 24 * 3600 * 1000;
@@ -228,6 +229,20 @@ namespace Neo.SmartContract
                 else
                     balanceMap.Put(oldOwner, balance);
                 accountMap.Delete(oldOwner + tokenKey);
+
+                //clear record
+                StorageMap recordMap = new(context, Prefix_Record);
+                var allrecords = (Iterator<RecordState>)recordMap.Find(tokenKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+                foreach (var state in allrecords)
+                {
+                    byte[] recordKey = GetRecordKey(tokenKey, state.Name, state.Type);
+                    StorageMap reverseMap = new(context, Prefix_ReverseRecord);
+                    if (state.Type == RecordType.TXT && reverseMap[state.Data] is not null)
+                    {
+                        reverseMap.Delete(state.Data);
+                    }
+                    recordMap.Delete(recordKey);
+                }
             }
             else
             {
@@ -578,6 +593,42 @@ namespace Neo.SmartContract
                 if (number < 0x200 || number == 0xdb8) return false;
             }
             return true;
+        }
+
+        public bool SetReverseRecord(UInt160 owner, string name)
+        {
+            if (!Runtime.CheckWitness(owner)) return false;
+            StorageContext context = Storage.CurrentContext;
+            StorageMap reverseMap = new(context, Prefix_ReverseRecord);
+            string record = GetRecord(name, RecordType.TXT);
+            if (record == owner.ToAddress(53))
+            {
+                reverseMap.Put(record, name);
+                return true;
+            }
+            return false;
+        }
+
+        [Safe]
+        public string GetReverseRecord(UInt160 owner)
+        {
+            StorageContext context = Storage.CurrentContext;
+            StorageMap reverseMap = new(context, Prefix_ReverseRecord);
+            string address = owner.ToAddress(53);
+            if (reverseMap[address] is not null)
+            {
+                string name = reverseMap[address];
+                string record = GetRecord(name, RecordType.TXT);
+                if (record == owner.ToAddress(53))
+                {
+                    return name;
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            return "";
         }
     }
 }
