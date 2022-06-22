@@ -588,6 +588,5 @@ namespace Neo.SmartContract
             }
             return true;
         }
-
     }
 }
