@@ -228,6 +228,14 @@ namespace Neo.SmartContract
                 else
                     balanceMap.Put(oldOwner, balance);
                 accountMap.Delete(oldOwner + tokenKey);
+
+                //clear records
+                StorageMap recordMap = new(context, Prefix_Record);
+                var allrecords = (Iterator<ByteString>)recordMap.Find(tokenKey, FindOptions.KeysOnly);
+                foreach (var key in allrecords)
+                {
+                    recordMap.Delete(key);
+                }
             }
             else
             {
