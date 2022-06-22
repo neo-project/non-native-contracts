@@ -231,11 +231,10 @@ namespace Neo.SmartContract
 
                 //clear record
                 StorageMap recordMap = new(context, Prefix_Record);
-                var allrecords = (Iterator<RecordState>)recordMap.Find(tokenKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
-                foreach (var state in allrecords)
+                var allrecords = (Iterator<ByteString>)recordMap.Find(tokenKey, FindOptions.KeysOnly);
+                foreach (var key in allrecords)
                 {
-                    byte[] recordKey = GetRecordKey(tokenKey, state.Name, state.Type);
-                    recordMap.Delete(recordKey);
+                    recordMap.Delete(key);
                 }
             }
             else
