@@ -234,7 +234,7 @@ namespace Neo.SmartContract
                 var allrecords = (Iterator<ByteString>)recordMap.Find(tokenKey, FindOptions.KeysOnly);
                 foreach (var key in allrecords)
                 {
-                    recordMap.Delete(key);
+                    Storage.Delete(context, key);
                 }
             }
             else
