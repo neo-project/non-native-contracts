@@ -444,7 +444,7 @@ namespace Neo.SmartContract
 
         private static ByteString GetKey(string tokenId)
         {
-            return CryptoLib.ripemd160(tokenId);
+            return CryptoLib.Ripemd160(tokenId);
         }
 
         private static byte[] GetRecordKey(ByteString tokenKey, string name, RecordType type)
