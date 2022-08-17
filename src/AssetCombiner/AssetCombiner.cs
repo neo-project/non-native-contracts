@@ -10,11 +10,12 @@ using System.Numerics;
 
 namespace Neo.SmartContract
 {
-    [ManifestExtra("Author", "Erik Zhang")]
-    [ManifestExtra("Email", "erik@neo.org")]
+    [ManifestExtra("Author", "The Neo Project")]
+    [ManifestExtra("Email", "dev@neo.org")]
     [ManifestExtra("Description", "Asset Combiner")]
     [SupportedStandards("NEP-11")]
     [ContractPermission("*", "transfer", "onNEP11Payment")]
+    [ContractSourceCode("https://github.com/neo-project/non-native-contracts")]
     public sealed class AssetCombiner : Nep11Token<ContainerState>
     {
         private const byte Prefix_AssetId = 0x10;
