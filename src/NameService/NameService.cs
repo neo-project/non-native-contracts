@@ -11,11 +11,12 @@ using System.Numerics;
 
 namespace Neo.SmartContract
 {
-    [ManifestExtra("Author", "Erik Zhang")]
-    [ManifestExtra("Email", "erik@neo.org")]
+    [ManifestExtra("Author", "The Neo Project")]
+    [ManifestExtra("Email", "dev@neo.org")]
     [ManifestExtra("Description", "Neo Name Service")]
     [SupportedStandards("NEP-11")]
     [ContractPermission("*", "onNEP11Payment")]
+    [ContractSourceCode("https://github.com/neo-project/non-native-contracts")]
     public sealed class NameService : Framework.SmartContract
     {
         public delegate void OnTransferDelegate(UInt160 from, UInt160 to, BigInteger amount, ByteString tokenId);
