@@ -140,17 +140,6 @@ namespace Neo.SmartContract
             ContractManagement.Update(nef, manifest);
         }
 
-        public static void AddRoot(string root)
-        {
-            CheckCommittee();
-            if (!CheckFragment(root, true))
-                throw new FormatException("The format of the root is incorrect.");
-            StorageMap rootMap = new(Storage.CurrentContext, Prefix_Root);
-            if (rootMap[root] is not null)
-                throw new InvalidOperationException("The root already exists.");
-            rootMap.Put(root, 0);
-        }
-
         [Safe]
         public static Iterator Roots()
         {
@@ -188,7 +177,10 @@ namespace Neo.SmartContract
             StorageMap nameMap = new(context, Prefix_Name);
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
+            if (rootMap[fragments[^1]] is null)  {
+                if (fragments.Length != 1) throw new InvalidOperationException("The TLD is not found");
+                return true;
+            }
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0) return false;
             return parentExpired(nameMap, 0, fragments);
@@ -203,11 +195,18 @@ namespace Neo.SmartContract
             StorageMap nameMap = new(context, Prefix_Name);
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
-            if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("One of the parent domains has expired.");
-            ByteString parentKey = GetKey(fragments[1]);
-            NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
-            parent.CheckAdmin();
+            ByteString tld = rootMap[fragments[^1]];
+            if (fragments.Length == 1) {
+                CheckCommittee();
+                if (tld is not null) throw new InvalidOperationException("TLD already exists.");
+                rootMap.Put(fragments[^1], 0);
+            } else {
+                if (tld is null) throw new InvalidOperationException("TLD does not exist.");
+                if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("One of the parent domains has expired.");
+                ByteString parentKey = GetKey(fragments[1]);
+                NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
+                parent.CheckAdmin();
+            }
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("No authorization.");
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0)
@@ -505,7 +504,7 @@ namespace Neo.SmartContract
             if (length < 3 || length > NameMaxLength) return null;
             string[] fragments = StdLib.StringSplit(name, ".");
             length = fragments.Length;
-            if (length < 2 || length > 8) return null;
+            if (length > 8) return null;
             if (length > 2 && !allowMultipleFragments) return null;
             for (int i = 0; i < length; i++)
                 if (!CheckFragment(fragments[i], i == length - 1))
