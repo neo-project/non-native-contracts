@@ -209,6 +209,11 @@ namespace Neo.SmartContract
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
+            ByteString parentKey = GetKey(fragments[1]);
+            ByteString parentBuffer = nameMap[parentKey];
+            if (parentBuffer is null) throw new InvalidOperationException("Unknown parent domain.");
+            NameState parent = (NameState)StdLib.Deserialize(parentBuffer);
+            parent.CheckAdmin();
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("No authorization.");
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0)
