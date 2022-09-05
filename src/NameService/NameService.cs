@@ -468,18 +468,34 @@ namespace Neo.SmartContract
             char c = root[0];
             if (isRoot)
             {
-                if (!(c >= 'a' && c <= 'z')) return false;
+                if (!isAlpha(c)) return false;
             }
             else
             {
-                if (!(c >= 'a' && c <= 'z' || c >= '0' && c <= '9')) return false;
+                if (!isAlphaNum(c)) return false;
             }
             for (int i = 1; i < root.Length; i++)
             {
                 c = root[i];
-                if (!(c >= 'a' && c <= 'z' || c >= '0' && c <= '9')) return false;
+                if (!isAlphaNum(c)) return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// Denotes whether provided character is a lowercase letter.
+        /// </summary>
+        private static bool isAlpha(char c)
+        {
+            return c >= 'a' && c <= 'z';
+        }
+
+        /// <summary>
+        /// Denotes whether provided character is a lowercase letter or a number.
+        /// </summary>
+        private static bool isAlphaNum(char c)
+        {
+            return isAlpha(c) || c >= '0' && c <= '9';
         }
 
         private static string[] SplitAndCheck(string name, bool allowMultipleFragments)
