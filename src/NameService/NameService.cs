@@ -474,12 +474,14 @@ namespace Neo.SmartContract
             {
                 if (!isAlphaNum(c)) return false;
             }
-            for (int i = 1; i < root.Length; i++)
+            if (root.Length == 1) return true;
+            for (int i = 1; i < root.Length - 1; i++)
             {
                 c = root[i];
-                if (!isAlphaNum(c)) return false;
+                if (!(isAlphaNum(c) || c == '-')) return false;
             }
-            return true;
+            c = root[root.Length - 1];
+            return isAlphaNum(c);
         }
 
         /// <summary>
