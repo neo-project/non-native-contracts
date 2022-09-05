@@ -463,7 +463,7 @@ namespace Neo.SmartContract
 
         private static bool CheckFragment(string root, bool isRoot)
         {
-            int maxLength = isRoot ? 16 : 62;
+            int maxLength = isRoot ? 16 : 63;
             if (root.Length == 0 || root.Length > maxLength) return false;
             char c = root[0];
             if (isRoot)
