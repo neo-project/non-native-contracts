@@ -393,6 +393,11 @@ namespace Neo.SmartContract
         private static string Resolve(string name, RecordType type, int redirect)
         {
             if (redirect < 0) throw new InvalidOperationException("Too many redirections.");
+            if (name.Length == 0) throw new InvalidOperationException("Invalid name.");
+            if (name[name.Length - 1] == '.')
+            {
+                name = name.Substring(0, name.Length - 1);
+            }
             string cname = null;
             foreach (var (key, state) in GetRecords(name))
             {
