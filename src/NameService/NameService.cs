@@ -104,7 +104,9 @@ namespace Neo.SmartContract
             StorageMap accountMap = new(context, Prefix_AccountToken);
             StorageMap nameMap = new(context, Prefix_Name);
             ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
+            ByteString tokenBytes = nameMap[tokenKey];
+            if (tokenBytes is null) throw new InvalidOperationException("Unknown token.");
+            NameState token = (NameState)StdLib.Deserialize(tokenBytes);
             token.EnsureNotExpired();
             UInt160 from = token.Owner;
             if (!Runtime.CheckWitness(from)) return false;
