@@ -58,8 +58,7 @@ namespace Neo.SmartContract
         public static UInt160 OwnerOf(ByteString tokenId)
         {
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[GetKey(tokenId)]);
-            token.EnsureNotExpired();
+            NameState token = getNameState(nameMap, tokenId);
             return token.Owner;
         }
 
@@ -67,8 +66,7 @@ namespace Neo.SmartContract
         public static Map<string, object> Properties(ByteString tokenId)
         {
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[GetKey(tokenId)]);
-            token.EnsureNotExpired();
+            NameState token = getNameState(nameMap, tokenId);
             Map<string, object> map = new();
             map["name"] = token.Name;
             map["expiration"] = token.Expiration;
@@ -200,10 +198,7 @@ namespace Neo.SmartContract
             if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0) return false;
-            ByteString buffer = nameMap[GetKey(name)];
-            if (buffer is null) return true;
-            NameState token = (NameState)StdLib.Deserialize(buffer);
-            return Runtime.Time >= token.Expiration;
+            return parentExpired(nameMap, 0, fragments);
         }
 
         public static bool Register(string name, UInt160 owner)
@@ -216,10 +211,9 @@ namespace Neo.SmartContract
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             if (rootMap[fragments[^1]] is null) throw new Exception("The root does not exist.");
+            if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("One of the parent domains has expired.");
             ByteString parentKey = GetKey(fragments[1]);
-            ByteString parentBuffer = nameMap[parentKey];
-            if (parentBuffer is null) throw new InvalidOperationException("Unknown parent domain.");
-            NameState parent = (NameState)StdLib.Deserialize(parentBuffer);
+            NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
             parent.CheckAdmin();
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("No authorization.");
             long price = GetPrice((byte)fragments[0].Length);
@@ -290,13 +284,12 @@ namespace Neo.SmartContract
             else
                 Runtime.BurnGas(price * years);
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
-            ByteString tokenKey = GetKey(name);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
+            NameState token = getNameState(nameMap, name);
             ulong oldExpiration = token.Expiration;
             token.Expiration += OneYear * years;
             if (token.Expiration > Runtime.Time + TenYears)
                 throw new ArgumentException("You can't renew a domain name for more than 10 years in total.");
+            ByteString tokenKey = GetKey(name);
             nameMap[tokenKey] = StdLib.Serialize(token);
             OnRenew(name, oldExpiration, token.Expiration);
             return token.Expiration;
@@ -307,12 +300,11 @@ namespace Neo.SmartContract
             if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
             if (admin is not null && !Runtime.CheckWitness(admin)) throw new InvalidOperationException("No authorization.");
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
-            ByteString tokenKey = GetKey(name);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
+            NameState token = getNameState(nameMap, name);
             if (!Runtime.CheckWitness(token.Owner)) throw new InvalidOperationException("No authorization.");
             UInt160 old = token.Admin;
             token.Admin = admin;
+            ByteString tokenKey = GetKey(name);
             nameMap[tokenKey] = StdLib.Serialize(token);
             OnSetAdmin(name, old, admin);
         }
@@ -322,8 +314,7 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string[] fragments = SplitAndCheck(name, true);
-            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
+            string tokenId = tokenIDFromName(name);
             switch (type)
             {
                 case RecordType.A:
@@ -341,11 +332,9 @@ namespace Neo.SmartContract
                 default:
                     throw new InvalidOperationException("The record type is not supported.");
             }
-            string tokenId = name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
-            ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
+            NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
+            ByteString tokenKey = GetKey(tokenId);
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
             recordMap.PutObject(recordKey, new RecordState
             {
@@ -361,12 +350,9 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string[] fragments = SplitAndCheck(name, true);
-            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            string tokenId = name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
+            string tokenId = tokenIDFromName(name);
+            getNameState(nameMap, tokenId); // ensure not expired
             ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
             RecordState record = (RecordState)recordMap.GetObject(recordKey);
             if (record is null) return null;
@@ -379,10 +365,11 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            ByteString tokenKey = GetKey(name);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
-            return (Iterator<RecordState>)recordMap.Find(tokenKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+            string tokenId = tokenIDFromName(name);
+            getNameState(nameMap, tokenId); // ensure not expired
+            ByteString tokenKey = GetKey(tokenId);
+            byte[] recordsKey = GetRecordsKey(tokenKey, name);
+            return (Iterator<RecordState>)recordMap.Find(recordsKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
         }
 
         public static void DeleteRecord(string name, RecordType type)
@@ -390,13 +377,10 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string[] fragments = SplitAndCheck(name, true);
-            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            string tokenId = name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
-            ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
+            string tokenId = tokenIDFromName(name);
+            NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
+            ByteString tokenKey = GetKey(tokenId);
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
             recordMap.Delete(recordKey);
         }
@@ -431,14 +415,11 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string[] fragments = SplitAndCheck(name, true);
-            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            string tokenId = name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
+            string tokenId = tokenIDFromName(name);
+            getNameState(nameMap, tokenId); // ensure not expired
             ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
-            token.EnsureNotExpired();
-            byte[] recordKey = Helper.Concat((byte[])tokenKey, GetKey(name));
-            return (Iterator<(ByteString, RecordState)>)recordMap.Find(recordKey, FindOptions.DeserializeValues);
+            byte[] recordsKey = GetRecordsKey(tokenKey, name);
+            return (Iterator<(ByteString, RecordState)>)recordMap.Find(recordsKey, FindOptions.DeserializeValues);
         }
 
         [DisplayName("_deploy")]
@@ -496,8 +477,13 @@ namespace Neo.SmartContract
 
         private static byte[] GetRecordKey(ByteString tokenKey, string name, RecordType type)
         {
-            byte[] key = Helper.Concat((byte[])tokenKey, GetKey(name));
+            byte[] key = GetRecordsKey(tokenKey, name);
             return Helper.Concat(key, ((byte)type).ToByteArray());
+        }
+
+        private static byte[] GetRecordsKey(ByteString tokenKey, string name)
+        {
+            return Helper.Concat((byte[])tokenKey, GetKey(name));
         }
 
         private static void PostTransfer(UInt160 from, UInt160 to, ByteString tokenId, object data)
@@ -652,6 +638,56 @@ namespace Neo.SmartContract
                 if (number < 0x200 || number == 0xdb8) return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// Checks provided name for validness and returns corresponding token ID.
+        /// </summary>
+        private static string tokenIDFromName(string name)
+        {
+            string[] fragments = SplitAndCheck(name, true);
+            if (fragments is null) throw new FormatException("The format of the name is incorrect.");
+            if (fragments.Length == 1) return name;
+            return name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
+        }
+
+        /// <summary>
+        /// Retrieves NameState from storage and checks that it's not expired as far as the parent domain.
+        /// </summary>
+        private static NameState getNameState(StorageMap nameMap, string tokenId)
+        {
+            ByteString tokenBytes = nameMap[GetKey(tokenId)];
+            if (tokenBytes is null) throw new InvalidOperationException("Unknown token.");
+            NameState token = (NameState)StdLib.Deserialize(tokenBytes);
+            token.EnsureNotExpired();
+            string[] fragments = StdLib.StringSplit(tokenId, ".");
+            if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("Parent domain has expired.");
+            return token;
+        }
+
+        /// <summary>
+        /// Returns true if any domain from fragments doesn't exist or expired.
+        /// </summary>
+        /// <param name="nameMap">Registered domain names storage map.</param>
+        /// <param name="first">The deepest subdomain to check.</param>
+        /// <param name="fragments">The array of domain name fragments.</param>
+        /// <returns>Whether any domain fragment doesn't exist or expired.</returns>
+        private static bool parentExpired(StorageMap nameMap, int first, string[] fragments)
+        {
+            int last = fragments.Length - 1;
+            string name = fragments[last];
+            for (int i = last; i >= first; i--)
+            {
+                if (i != last)
+                {
+                    name = fragments[i] + "." + name;
+                }
+                ByteString buffer = nameMap[GetKey(name)];
+                if (buffer is null) return true;
+                NameState token = (NameState)StdLib.Deserialize(buffer);
+                if (Runtime.Time >= token.Expiration) return true;
+            }
+            return false;
         }
     }
 }
