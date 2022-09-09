@@ -38,6 +38,7 @@ namespace Neo.SmartContract
         private const int NameMaxLength = 255;
         private const ulong OneYear = 365ul * 24 * 3600 * 1000;
         private const ulong TenYears = OneYear * 10;
+        private const int MaxRecordID = 255;
 
         [Safe]
         public static string Symbol() => "NNS";
@@ -299,11 +300,39 @@ namespace Neo.SmartContract
             OnSetAdmin(name, old, admin);
         }
 
-        public static void SetRecord(string name, RecordType type, string data)
+        public static void SetRecord(string name, RecordType type, byte id, string data)
         {
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
+            string tokenId = CheckRecord(nameMap, recordMap, name, type, data);
+            byte[] recordKey = GetRecordKey(tokenId, name, type, id);
+            ByteString buffer = recordMap[recordKey];
+            if (buffer is null) throw new InvalidOperationException("Unknown record.");
+            PutRecord(recordMap, tokenId, name, type, id, data);
+        }
+        
+        public static void AddRecord(string name, RecordType type, string data)
+        {
+            StorageContext context = Storage.CurrentContext;
+            StorageMap nameMap = new(context, Prefix_Name);
+            StorageMap recordMap = new(context, Prefix_Record);
+            string tokenId = CheckRecord(nameMap, recordMap, name, type, data);
+            byte[] recordsPrefix = GetRecordsByTypePrefix(tokenId, name, type);
+            byte id = 0;
+            var records = (Iterator<RecordState>)recordMap.Find(recordsPrefix, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+            foreach (var record in records)
+            {
+                if (record.Name == name && record.Type == type && record.Data == data) throw new InvalidOperationException("Duplicating record.");
+                id++;
+            }
+            if (id > MaxRecordID) throw new InvalidOperationException("Maximum number of records reached.");
+            if (type == RecordType.CNAME && id != 0) throw new InvalidOperationException("Multiple CNAME records.");
+            PutRecord(recordMap, tokenId, name, type, id, data);
+        }
+
+        private static string CheckRecord(StorageMap nameMap, StorageMap recordMap, string name, RecordType type, string data)
+        {
             string tokenId = tokenIDFromName(name);
             switch (type)
             {
@@ -324,27 +353,42 @@ namespace Neo.SmartContract
             }
             NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
-            byte[] recordKey = GetRecordKey(tokenId, name, type);
+            return tokenId;
+        }
+
+        private static void PutRecord(StorageMap recordMap, string tokenId, string name, RecordType type, byte id, string data)
+        {
+            byte[] recordKey = GetRecordKey(tokenId, name, type, id);   
             recordMap.PutObject(recordKey, new RecordState
             {
                 Name = name,
                 Type = type,
-                Data = data
+                Data = data,
+                ID = id,
             });
         }
 
         [Safe]
-        public static string GetRecord(string name, RecordType type)
+        public static string[] GetRecords(string name, RecordType type)
         {
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
             string tokenId = tokenIDFromName(name);
             getNameState(nameMap, tokenId); // ensure not expired
-            byte[] recordKey = GetRecordKey(tokenId, name, type);
-            RecordState record = (RecordState)recordMap.GetObject(recordKey);
-            if (record is null) return null;
-            return record.Data;
+            return GetRecordsByType(recordMap, tokenId, name, type);
+        }
+
+        private static string[] GetRecordsByType(StorageMap recordMap, string tokenId, string name, RecordType type)
+        {
+            byte[] recordsPrefix = GetRecordsByTypePrefix(tokenId, name, type);
+            List<string> result = new List<string>();
+            var records = (Iterator<RecordState>)recordMap.Find(recordsPrefix, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+            foreach (RecordState record in records)
+            {
+                result.Add(record.Data);
+            }
+            return (string[])result;
         }
 
         [Safe]
@@ -355,11 +399,11 @@ namespace Neo.SmartContract
             StorageMap recordMap = new(context, Prefix_Record);
             string tokenId = tokenIDFromName(name);
             getNameState(nameMap, tokenId); // ensure not expired
-            byte[] recordsKey = GetRecordsKey(tokenId, name);
+            byte[] recordsKey = GetRecordsPrefix(tokenId, name);
             return (Iterator<RecordState>)recordMap.Find(recordsKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
         }
 
-        public static void DeleteRecord(string name, RecordType type)
+        public static void DeleteRecords(string name, RecordType type)
         {
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
@@ -367,17 +411,22 @@ namespace Neo.SmartContract
             string tokenId = tokenIDFromName(name);
             NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
-            byte[] recordKey = GetRecordKey(tokenId, name, type);
-            recordMap.Delete(recordKey);
+            byte[] recordsKey = GetRecordsByTypePrefix(tokenId, name, type);
+            var keys = (Iterator<ByteString>)recordMap.Find(recordsKey, FindOptions.KeysOnly);
+            foreach (ByteString key in keys)
+            {
+                Storage.Delete(context, key);
+            }
         }
 
         [Safe]
-        public static string Resolve(string name, RecordType type)
+        public static string[] Resolve(string name, RecordType type)
         {
-            return Resolve(name, type, 2);
+            List<string> res = new List<string>();
+            return (string[])Resolve(res, name, type, 2);
         }
 
-        private static string Resolve(string name, RecordType type, int redirect)
+        private static string[] Resolve(List<string> res, string name, RecordType type, int redirect)
         {
             if (redirect < 0) throw new InvalidOperationException("Too many redirections.");
             if (name.Length == 0) throw new InvalidOperationException("Invalid name.");
@@ -386,25 +435,13 @@ namespace Neo.SmartContract
                 name = name.Substring(0, name.Length - 1);
             }
             string cname = null;
-            foreach (var (key, state) in GetRecords(name))
+            foreach (RecordState state in GetAllRecords(name))
             {
-                RecordType rt = (RecordType)key[^1];
-                if (rt == type) return state.Data;
-                if (rt == RecordType.CNAME) cname = state.Data;
+                if (state.Type == type) res.Add(state.Data);
+                if (state.Type == RecordType.CNAME) cname = state.Data;
             }
-            if (cname is null) return null;
-            return Resolve(cname, type, redirect - 1);
-        }
-
-        private static Iterator<(ByteString, RecordState)> GetRecords(string name)
-        {
-            StorageContext context = Storage.CurrentContext;
-            StorageMap nameMap = new(context, Prefix_Name);
-            StorageMap recordMap = new(context, Prefix_Record);
-            string tokenId = tokenIDFromName(name);
-            getNameState(nameMap, tokenId); // ensure not expired
-            byte[] recordsKey = GetRecordsKey(tokenId, name);
-            return (Iterator<(ByteString, RecordState)>)recordMap.Find(recordsKey, FindOptions.DeserializeValues);
+            if (cname is null || type == RecordType.CNAME) return res;
+            return (string[])Resolve(res, cname, type, redirect - 1);
         }
 
         [DisplayName("_deploy")]
@@ -436,16 +473,22 @@ namespace Neo.SmartContract
             return CryptoLib.Ripemd160(tokenId);
         }
 
-        private static byte[] GetRecordKey(string tokenId, string name, RecordType type)
+        private static byte[] GetRecordKey(string tokenId, string name, RecordType type, byte id)
         {
-            byte[] key = GetRecordsKey(tokenId, name);
-            return Helper.Concat(key, ((byte)type).ToByteArray());
+            byte[] prefix = GetRecordsByTypePrefix(tokenId, name, type);
+            return Helper.Concat(prefix, new byte[1]{ id });
         }
 
-        private static byte[] GetRecordsKey(string tokenId, string name)
+        private static byte[] GetRecordsByTypePrefix(string tokenId, string name, RecordType type)
+        {
+            byte[] recordKey = GetRecordsPrefix(tokenId, name);
+            return Helper.Concat(recordKey, ((byte)type).ToByteArray());
+        }
+
+        private static byte[] GetRecordsPrefix(string tokenId, string name)
         {
             ByteString tokenKey = GetKey(tokenId);
-            return Helper.Concat((byte[])tokenKey, GetKey(name));
+            return Helper.Concat((byte[])tokenKey, (byte[])GetKey(name));
         }
 
         private static void PostTransfer(UInt160 from, UInt160 to, ByteString tokenId, object data)
