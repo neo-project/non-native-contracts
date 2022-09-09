@@ -324,8 +324,7 @@ namespace Neo.SmartContract
             }
             NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
-            ByteString tokenKey = GetKey(tokenId);
-            byte[] recordKey = GetRecordKey(tokenKey, name, type);
+            byte[] recordKey = GetRecordKey(tokenId, name, type);
             recordMap.PutObject(recordKey, new RecordState
             {
                 Name = name,
@@ -342,8 +341,7 @@ namespace Neo.SmartContract
             StorageMap recordMap = new(context, Prefix_Record);
             string tokenId = tokenIDFromName(name);
             getNameState(nameMap, tokenId); // ensure not expired
-            ByteString tokenKey = GetKey(tokenId);
-            byte[] recordKey = GetRecordKey(tokenKey, name, type);
+            byte[] recordKey = GetRecordKey(tokenId, name, type);
             RecordState record = (RecordState)recordMap.GetObject(recordKey);
             if (record is null) return null;
             return record.Data;
@@ -357,8 +355,7 @@ namespace Neo.SmartContract
             StorageMap recordMap = new(context, Prefix_Record);
             string tokenId = tokenIDFromName(name);
             getNameState(nameMap, tokenId); // ensure not expired
-            ByteString tokenKey = GetKey(tokenId);
-            byte[] recordsKey = GetRecordsKey(tokenKey, name);
+            byte[] recordsKey = GetRecordsKey(tokenId, name);
             return (Iterator<RecordState>)recordMap.Find(recordsKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
         }
 
@@ -370,8 +367,7 @@ namespace Neo.SmartContract
             string tokenId = tokenIDFromName(name);
             NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
-            ByteString tokenKey = GetKey(tokenId);
-            byte[] recordKey = GetRecordKey(tokenKey, name, type);
+            byte[] recordKey = GetRecordKey(tokenId, name, type);
             recordMap.Delete(recordKey);
         }
 
@@ -407,8 +403,7 @@ namespace Neo.SmartContract
             StorageMap recordMap = new(context, Prefix_Record);
             string tokenId = tokenIDFromName(name);
             getNameState(nameMap, tokenId); // ensure not expired
-            ByteString tokenKey = GetKey(tokenId);
-            byte[] recordsKey = GetRecordsKey(tokenKey, name);
+            byte[] recordsKey = GetRecordsKey(tokenId, name);
             return (Iterator<(ByteString, RecordState)>)recordMap.Find(recordsKey, FindOptions.DeserializeValues);
         }
 
@@ -441,14 +436,15 @@ namespace Neo.SmartContract
             return CryptoLib.Ripemd160(tokenId);
         }
 
-        private static byte[] GetRecordKey(ByteString tokenKey, string name, RecordType type)
+        private static byte[] GetRecordKey(string tokenId, string name, RecordType type)
         {
-            byte[] key = GetRecordsKey(tokenKey, name);
+            byte[] key = GetRecordsKey(tokenId, name);
             return Helper.Concat(key, ((byte)type).ToByteArray());
         }
 
-        private static byte[] GetRecordsKey(ByteString tokenKey, string name)
+        private static byte[] GetRecordsKey(string tokenId, string name)
         {
+            ByteString tokenKey = GetKey(tokenId);
             return Helper.Concat((byte[])tokenKey, GetKey(name));
         }
 
