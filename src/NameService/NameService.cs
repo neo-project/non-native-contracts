@@ -177,7 +177,8 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap rootMap = new(context, Prefix_Root);
             StorageMap nameMap = new(context, Prefix_Name);
-            string[] fragments = SplitAndCheck(name, false);
+            StorageMap recordMap = new(context, Prefix_Record);
+            string[] fragments = SplitAndCheck(name, true);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             if (rootMap[fragments[^1]] is null)  {
                 if (fragments.Length != 1) throw new InvalidOperationException("The TLD is not found");
@@ -185,7 +186,8 @@ namespace Neo.SmartContract
             }
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0) return false;
-            return parentExpired(nameMap, 0, fragments);
+            if (!parentExpired(nameMap, 0, fragments)) return false;
+            return getParentConflictingRecord(recordMap, name, fragments).Length == 0;
         }
 
         public static bool Register(string name, UInt160 owner, string email, int refresh, int retry, int expire, int ttl)
@@ -210,13 +212,8 @@ namespace Neo.SmartContract
                 NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
                 parent.CheckAdmin();
 
-                ByteString suffix = name;
-                var parentRecords = (Iterator<RecordState>)recordMap.Find(parentKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
-                foreach (var r in parentRecords)
-                {
-                    int idx = StdLib.MemorySearch(r.Name, suffix, r.Name.Length, true);
-                    if (idx > 0 && idx + suffix.Length == r.Name.Length) throw new InvalidOperationException("Parent domain has conflicting records: " + r.Name + ".");
-                }
+                string conflict = getParentConflictingRecord(recordMap, name, fragments);
+                if (conflict.Length != 0) throw new InvalidOperationException("Parent domain has conflicting records: " + conflict + ".");
             }
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("Not wtnessed by owner.");
             long price = GetPrice((byte)fragments[0].Length);
@@ -318,7 +315,7 @@ namespace Neo.SmartContract
         {
             if (years < 1 || years > 10) throw new ArgumentException("The argument `years` is out of range.");
             if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
-            string[] fragments = SplitAndCheck(name, false);
+            string[] fragments = SplitAndCheck(name, true);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0)
@@ -756,6 +753,19 @@ namespace Neo.SmartContract
                 if (Runtime.Time >= token.Expiration) return true;
             }
             return false;
+        }
+
+        private static string getParentConflictingRecord(StorageMap recordMap, string name, string[] fragments)
+        {
+            ByteString parentKey = GetKey(name.Substring(fragments[0].Length+1));
+            ByteString suffix = name;
+            var parentRecords = (Iterator<RecordState>)recordMap.Find(parentKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+            foreach (var r in parentRecords)
+            {
+                int idx = StdLib.MemorySearch(r.Name, suffix, r.Name.Length, true);
+                if (idx > 0 && idx + suffix.Length == r.Name.Length) return r.Name;
+            }
+            return "";
         }
     }
 }
