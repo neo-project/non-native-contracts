@@ -209,6 +209,14 @@ namespace Neo.SmartContract
                 ByteString parentKey = GetKey(name.Substring(fragments[0].Length+1));
                 NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
                 parent.CheckAdmin();
+
+                ByteString suffix = name;
+                var parentRecords = (Iterator<RecordState>)recordMap.Find(parentKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
+                foreach (var r in parentRecords)
+                {
+                    int idx = StdLib.MemorySearch(r.Name, suffix, r.Name.Length, true);
+                    if (idx > 0 && idx + suffix.Length == r.Name.Length) throw new InvalidOperationException("Parent domain has conflicting records: " + r.Name + ".");
+                }
             }
             if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("Not wtnessed by owner.");
             long price = GetPrice((byte)fragments[0].Length);
