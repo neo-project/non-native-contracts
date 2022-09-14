@@ -279,7 +279,6 @@ namespace Neo.SmartContract
             ByteString tokenKey = GetKey(name);
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
             token.EnsureNotExpired();
-            token.CheckAdmin();
             token.Expiration += OneYear * years;
             if (token.Expiration > Runtime.Time + TenYears)
                 throw new ArgumentException("You can't renew a domain name for more than 10 years in total.");
