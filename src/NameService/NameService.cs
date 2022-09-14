@@ -36,7 +36,8 @@ namespace Neo.SmartContract
         private const byte Prefix_Record = 0x22;
 
         private const int NameMaxLength = 255;
-        private const ulong OneYear = 365ul * 24 * 3600 * 1000;
+        private const ulong MillisecondsInSecond = 1000;
+        private const ulong OneYear = 365ul * 24 * 3600 * MillisecondsInSecond;
         private const ulong TenYears = OneYear * 10;
         private const int MaxRecordID = 255;
 
@@ -187,13 +188,14 @@ namespace Neo.SmartContract
             return parentExpired(nameMap, 0, fragments);
         }
 
-        public static bool Register(string name, UInt160 owner)
+        public static bool Register(string name, UInt160 owner, string email, int refresh, int retry, int expire, int ttl)
         {
             StorageContext context = Storage.CurrentContext;
             StorageMap balanceMap = new(context, Prefix_Balance);
             StorageMap accountMap = new(context, Prefix_AccountToken);
             StorageMap rootMap = new(context, Prefix_Root);
             StorageMap nameMap = new(context, Prefix_Name);
+            StorageMap recordMap = new(context, Prefix_Record);
             string[] fragments = SplitAndCheck(name, false);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             ByteString tld = rootMap[fragments[^1]];
@@ -232,7 +234,6 @@ namespace Neo.SmartContract
                 accountMap.Delete(oldOwner + tokenKey);
 
                 //clear records
-                StorageMap recordMap = new(context, Prefix_Record);
                 var allrecords = (Iterator<ByteString>)recordMap.Find(tokenKey, FindOptions.KeysOnly);
                 foreach (var key in allrecords)
                 {
@@ -249,15 +250,55 @@ namespace Neo.SmartContract
             {
                 Owner = owner,
                 Name = name,
-                Expiration = Runtime.Time + OneYear
+                Expiration = Runtime.Time + (ulong)expire * MillisecondsInSecond,
             };
             nameMap[tokenKey] = StdLib.Serialize(token);
             BigInteger ownerBalance = (BigInteger)balanceMap[owner];
             ownerBalance++;
             balanceMap.Put(owner, ownerBalance);
+            PutSoaRecord(recordMap, name, email, refresh, retry, expire, ttl);
             accountMap[owner + tokenKey] = name;
             PostTransfer(oldOwner, owner, name, null);
             return true;
+        }
+
+        public static void UpdateSOA(string name, string email, int refresh, int retry, int expire, int ttl)
+        {
+            if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
+            StorageContext context = Storage.CurrentContext;
+            StorageMap nameMap = new(context, Prefix_Name);
+            StorageMap recordMap = new(context, Prefix_Record);
+            NameState token = getNameState(nameMap, name);
+            token.CheckAdmin();
+            PutSoaRecord(recordMap, name, email, refresh, retry, expire, ttl);
+        }
+
+        private static void PutSoaRecord(StorageMap recordMap, string name, string email, int refresh, int retry, int expire, int ttl)
+        {
+            string data = name + " " + email + " " +
+		        StdLib.Itoa(Runtime.Time) + " " +
+		        StdLib.Itoa(refresh) + " " +
+		        StdLib.Itoa(retry) + " " +
+		        StdLib.Itoa(expire) + " " +
+		        StdLib.Itoa(ttl);
+            string tokenId = tokenIDFromName(name);
+            PutRecord(recordMap, tokenId, name, RecordType.SOA, 0, data);
+        }
+
+        private static void UpdateSOASerial(StorageMap recordMap, string tokenId)
+        {
+            byte[] recordKey = GetRecordKey(tokenId, tokenId, RecordType.SOA, 0);
+            ByteString buffer = recordMap[recordKey];
+            if (buffer is null) throw new InvalidOperationException("Unknown SOA record.");
+            RecordState record = (RecordState)StdLib.Deserialize(buffer);
+            string[] data = StdLib.StringSplit(record.Data, " ", true);
+            if (data.Length != 7) throw new InvalidOperationException("Corrupted SOA record format.");
+            data[2] = StdLib.Itoa(Runtime.Time); // update serial
+            record.Data = data[0] + " " + data[1] + " " +
+                data[2] + " " + data[3] + " " +
+                data[4] + " " + data[5] + " " +
+                data[6];
+            recordMap.PutObject(recordKey, record);
         }
 
         public static ulong Renew(string name)
@@ -310,6 +351,7 @@ namespace Neo.SmartContract
             ByteString buffer = recordMap[recordKey];
             if (buffer is null) throw new InvalidOperationException("Unknown record.");
             PutRecord(recordMap, tokenId, name, type, id, data);
+            UpdateSOASerial(recordMap, tokenId);
         }
         
         public static void AddRecord(string name, RecordType type, string data)
@@ -329,6 +371,7 @@ namespace Neo.SmartContract
             if (id > MaxRecordID) throw new InvalidOperationException("Maximum number of records reached.");
             if (type == RecordType.CNAME && id != 0) throw new InvalidOperationException("Multiple CNAME records.");
             PutRecord(recordMap, tokenId, name, type, id, data);
+            UpdateSOASerial(recordMap, tokenId);
         }
 
         private static string CheckRecord(StorageMap nameMap, StorageMap recordMap, string name, RecordType type, string data)
@@ -405,6 +448,7 @@ namespace Neo.SmartContract
 
         public static void DeleteRecords(string name, RecordType type)
         {
+            if (type == RecordType.SOA) throw new InvalidOperationException("Forbidden to delete SOA record.");
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
@@ -417,6 +461,7 @@ namespace Neo.SmartContract
             {
                 Storage.Delete(context, key);
             }
+            UpdateSOASerial(recordMap, tokenId);
         }
 
         [Safe]
