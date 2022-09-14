@@ -196,7 +196,7 @@ namespace Neo.SmartContract
             StorageMap rootMap = new(context, Prefix_Root);
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string[] fragments = SplitAndCheck(name, false);
+            string[] fragments = SplitAndCheck(name, true);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
             ByteString tld = rootMap[fragments[^1]];
             if (fragments.Length == 1) {
@@ -205,8 +205,8 @@ namespace Neo.SmartContract
                 rootMap.Put(fragments[^1], 0);
             } else {
                 if (tld is null) throw new InvalidOperationException("TLD does not exist.");
-                if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("One of the parent domains has expired.");
-                ByteString parentKey = GetKey(fragments[1]);
+                if (parentExpired(nameMap, 1, fragments)) throw new InvalidOperationException("One of the parent domains is not registered.");
+                ByteString parentKey = GetKey(name.Substring(fragments[0].Length+1));
                 NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
                 parent.CheckAdmin();
             }
@@ -256,7 +256,7 @@ namespace Neo.SmartContract
             BigInteger ownerBalance = (BigInteger)balanceMap[owner];
             ownerBalance++;
             balanceMap.Put(owner, ownerBalance);
-            PutSoaRecord(recordMap, name, email, refresh, retry, expire, ttl);
+            PutSoaRecord(nameMap, recordMap, name, email, refresh, retry, expire, ttl);
             accountMap[owner + tokenKey] = name;
             PostTransfer(oldOwner, owner, name, null);
             return true;
@@ -270,10 +270,10 @@ namespace Neo.SmartContract
             StorageMap recordMap = new(context, Prefix_Record);
             NameState token = getNameState(nameMap, name);
             token.CheckAdmin();
-            PutSoaRecord(recordMap, name, email, refresh, retry, expire, ttl);
+            PutSoaRecord(nameMap, recordMap, name, email, refresh, retry, expire, ttl);
         }
 
-        private static void PutSoaRecord(StorageMap recordMap, string name, string email, int refresh, int retry, int expire, int ttl)
+        private static void PutSoaRecord(StorageMap nameMap, StorageMap recordMap, string name, string email, int refresh, int retry, int expire, int ttl)
         {
             string data = name + " " + email + " " +
 		        StdLib.Itoa(Runtime.Time) + " " +
@@ -281,7 +281,7 @@ namespace Neo.SmartContract
 		        StdLib.Itoa(retry) + " " +
 		        StdLib.Itoa(expire) + " " +
 		        StdLib.Itoa(ttl);
-            string tokenId = tokenIDFromName(name);
+            string tokenId = tokenIDFromName(nameMap, name);
             PutRecord(recordMap, tokenId, name, RecordType.SOA, 0, data);
         }
 
@@ -376,7 +376,7 @@ namespace Neo.SmartContract
 
         private static string CheckRecord(StorageMap nameMap, StorageMap recordMap, string name, RecordType type, string data)
         {
-            string tokenId = tokenIDFromName(name);
+            string tokenId = tokenIDFromName(nameMap, name);
             switch (type)
             {
                 case RecordType.A:
@@ -417,7 +417,7 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string tokenId = tokenIDFromName(name);
+            string tokenId = tokenIDFromName(nameMap, name);
             getNameState(nameMap, tokenId); // ensure not expired
             return GetRecordsByType(recordMap, tokenId, name, type);
         }
@@ -440,7 +440,7 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string tokenId = tokenIDFromName(name);
+            string tokenId = tokenIDFromName(nameMap, name);
             getNameState(nameMap, tokenId); // ensure not expired
             byte[] recordsKey = GetRecordsPrefix(tokenId, name);
             return (Iterator<RecordState>)recordMap.Find(recordsKey, FindOptions.ValuesOnly | FindOptions.DeserializeValues);
@@ -452,7 +452,7 @@ namespace Neo.SmartContract
             StorageContext context = Storage.CurrentContext;
             StorageMap nameMap = new(context, Prefix_Name);
             StorageMap recordMap = new(context, Prefix_Record);
-            string tokenId = tokenIDFromName(name);
+            string tokenId = tokenIDFromName(nameMap, name);
             NameState token = getNameState(nameMap, tokenId);
             token.CheckAdmin();
             byte[] recordsKey = GetRecordsByTypePrefix(tokenId, name, type);
@@ -693,12 +693,24 @@ namespace Neo.SmartContract
         /// <summary>
         /// Checks provided name for validness and returns corresponding token ID.
         /// </summary>
-        private static string tokenIDFromName(string name)
+        private static string tokenIDFromName(StorageMap nameMap, string name)
         {
             string[] fragments = SplitAndCheck(name, true);
             if (fragments is null) throw new FormatException("The format of the name is incorrect.");
-            if (fragments.Length == 1) return name;
-            return name[^(fragments[^2].Length + fragments[^1].Length + 1)..];
+            int sum = 0;
+            for (int i = 0; i < fragments.Length-1; i++)
+            {
+                ByteString tokenKey = GetKey(name.Substring(sum));
+                ByteString tokenBytes = nameMap[tokenKey];
+                if (tokenBytes is not null)
+                {
+                    NameState token = (NameState)StdLib.Deserialize(tokenBytes);
+                    if (Runtime.Time < token.Expiration) return name.Substring(sum);
+                }
+                sum += fragments[i].Length + 1;
+
+            }
+            return name;
         }
 
         /// <summary>
