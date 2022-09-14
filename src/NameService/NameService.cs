@@ -210,7 +210,7 @@ namespace Neo.SmartContract
                 NameState parent = (NameState)StdLib.Deserialize(nameMap[parentKey]);
                 parent.CheckAdmin();
             }
-            if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("No authorization.");
+            if (!Runtime.CheckWitness(owner)) throw new InvalidOperationException("Not wtnessed by owner.");
             long price = GetPrice((byte)fragments[0].Length);
             if (price < 0)
                 CheckCommittee();
@@ -330,10 +330,10 @@ namespace Neo.SmartContract
         public static void SetAdmin(string name, UInt160 admin)
         {
             if (name.Length > NameMaxLength) throw new FormatException("The format of the name is incorrect.");
-            if (admin is not null && !Runtime.CheckWitness(admin)) throw new InvalidOperationException("No authorization.");
+            if (admin is not null && !Runtime.CheckWitness(admin)) throw new InvalidOperationException("Not witnessed by admin.");
             StorageMap nameMap = new(Storage.CurrentContext, Prefix_Name);
             NameState token = getNameState(nameMap, name);
-            if (!Runtime.CheckWitness(token.Owner)) throw new InvalidOperationException("No authorization.");
+            if (!Runtime.CheckWitness(token.Owner)) throw new InvalidOperationException("Not witnessed by owner.");
             UInt160 old = token.Admin;
             token.Admin = admin;
             ByteString tokenKey = GetKey(name);
@@ -510,7 +510,7 @@ namespace Neo.SmartContract
             ECPoint[] committees = NEO.GetCommittee();
             UInt160 committeeMultiSigAddr = Contract.CreateMultisigAccount(committees.Length - (committees.Length - 1) / 2, committees);
             if (!Runtime.CheckWitness(committeeMultiSigAddr))
-                throw new InvalidOperationException("No authorization.");
+                throw new InvalidOperationException("Not witnessed by committee.");
         }
 
         private static ByteString GetKey(string tokenId)
