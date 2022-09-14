@@ -517,18 +517,19 @@ namespace Neo.SmartContract
             {
                 case 0:
                 case 10:
+                case 100 when numbers[1] >= 64 && numbers[1] <= 127:
                 case 127:
+                case 169 when numbers[1] == 254:
+                case 172 when numbers[1] >= 16 && numbers[1] <= 31:
+                case 192 when numbers[1] == 0 && numbers[2] == 0:
+                case 192 when numbers[1] == 0 && numbers[2] == 2:
+                case 192 when numbers[1] == 88 && numbers[2] == 99:
+                case 192 when numbers[1] == 168:
+                case 198 when numbers[1] >= 18 && numbers[1] <= 19:
+                case 198 when numbers[1] == 51 && numbers[2] == 100:
+                case 203 when numbers[1] == 0 && numbers[2] == 113:
                 case >= 224:
                     return false;
-                case 169:
-                    if (numbers[1] == 254) return false;
-                    break;
-                case 172:
-                    if (numbers[1] >= 16 && numbers[1] <= 31) return false;
-                    break;
-                case 192:
-                    if (numbers[1] == 168) return false;
-                    break;
             }
             return numbers[3] switch
             {
