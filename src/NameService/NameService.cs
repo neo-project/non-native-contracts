@@ -104,7 +104,9 @@ namespace Neo.SmartContract
             StorageMap accountMap = new(context, Prefix_AccountToken);
             StorageMap nameMap = new(context, Prefix_Name);
             ByteString tokenKey = GetKey(tokenId);
-            NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
+            ByteString tokenBytes = nameMap[tokenKey];
+            if (tokenBytes is null) throw new InvalidOperationException("Unknown token.");
+            NameState token = (NameState)StdLib.Deserialize(tokenBytes);
             token.EnsureNotExpired();
             UInt160 from = token.Owner;
             if (!Runtime.CheckWitness(from)) return false;
@@ -353,6 +355,7 @@ namespace Neo.SmartContract
             token.EnsureNotExpired();
             byte[] recordKey = GetRecordKey(tokenKey, name, type);
             RecordState record = (RecordState)recordMap.GetObject(recordKey);
+            if (record is null) return null;
             return record.Data;
         }
 
@@ -393,6 +396,11 @@ namespace Neo.SmartContract
         private static string Resolve(string name, RecordType type, int redirect)
         {
             if (redirect < 0) throw new InvalidOperationException("Too many redirections.");
+            if (name.Length == 0) throw new InvalidOperationException("Invalid name.");
+            if (name[name.Length - 1] == '.')
+            {
+                name = name.Substring(0, name.Length - 1);
+            }
             string cname = null;
             foreach (var (key, state) in GetRecords(name))
             {
@@ -463,23 +471,41 @@ namespace Neo.SmartContract
 
         private static bool CheckFragment(string root, bool isRoot)
         {
-            int maxLength = isRoot ? 16 : 62;
+            int maxLength = isRoot ? 16 : 63;
             if (root.Length == 0 || root.Length > maxLength) return false;
             char c = root[0];
             if (isRoot)
             {
-                if (!(c >= 'a' && c <= 'z')) return false;
+                if (!isAlpha(c)) return false;
             }
             else
             {
-                if (!(c >= 'a' && c <= 'z' || c >= '0' && c <= '9')) return false;
+                if (!isAlphaNum(c)) return false;
             }
-            for (int i = 1; i < root.Length; i++)
+            if (root.Length == 1) return true;
+            for (int i = 1; i < root.Length - 1; i++)
             {
                 c = root[i];
-                if (!(c >= 'a' && c <= 'z' || c >= '0' && c <= '9')) return false;
+                if (!(isAlphaNum(c) || c == '-')) return false;
             }
-            return true;
+            c = root[root.Length - 1];
+            return isAlphaNum(c);
+        }
+
+        /// <summary>
+        /// Denotes whether provided character is a lowercase letter.
+        /// </summary>
+        private static bool isAlpha(char c)
+        {
+            return c >= 'a' && c <= 'z';
+        }
+
+        /// <summary>
+        /// Denotes whether provided character is a lowercase letter or a number.
+        /// </summary>
+        private static bool isAlphaNum(char c)
+        {
+            return isAlpha(c) || c >= '0' && c <= '9';
         }
 
         private static string[] SplitAndCheck(string name, bool allowMultipleFragments)
