@@ -21,11 +21,14 @@ namespace Neo.SmartContract
     {
         public delegate void OnTransferDelegate(UInt160 from, UInt160 to, BigInteger amount, ByteString tokenId);
         public delegate void OnSetAdminDelegate(string name, UInt160 oldAdmin, UInt160 newAdmin);
+        public delegate void OnRenewDelegate(string name, BigInteger oldExpiration, BigInteger newExpiration);
 
         [DisplayName("Transfer")]
         public static event OnTransferDelegate OnTransfer;
         [DisplayName("SetAdmin")]
         public static event OnSetAdminDelegate OnSetAdmin;
+        [DisplayName("Renew")]
+        public static event OnRenewDelegate OnRenew;
 
         private const byte Prefix_TotalSupply = 0x00;
         private const byte Prefix_Balance = 0x01;
@@ -281,10 +284,12 @@ namespace Neo.SmartContract
             ByteString tokenKey = GetKey(name);
             NameState token = (NameState)StdLib.Deserialize(nameMap[tokenKey]);
             token.EnsureNotExpired();
+            ulong oldExpiration = token.Expiration;
             token.Expiration += OneYear * years;
             if (token.Expiration > Runtime.Time + TenYears)
                 throw new ArgumentException("You can't renew a domain name for more than 10 years in total.");
             nameMap[tokenKey] = StdLib.Serialize(token);
+            OnRenew(name, oldExpiration, token.Expiration);
             return token.Expiration;
         }
 
