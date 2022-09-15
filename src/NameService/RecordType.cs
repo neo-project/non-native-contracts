@@ -18,6 +18,11 @@ namespace Neo.SmartContract
         CNAME = 5,
 
         /// <summary>
+        /// Start of authority.
+        /// </summary>
+        SOA = 6,
+
+        /// <summary>
         /// Text record.
         /// </summary>
         TXT = 16,

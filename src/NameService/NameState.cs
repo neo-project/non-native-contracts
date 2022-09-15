@@ -20,7 +20,7 @@ namespace Neo.SmartContract
         {
             if (Runtime.CheckWitness(Owner)) return;
             if (Admin is null || !Runtime.CheckWitness(Admin))
-                throw new InvalidOperationException("No authorization.");
+                throw new InvalidOperationException("Not witnessed by admin.");
         }
     }
 }
