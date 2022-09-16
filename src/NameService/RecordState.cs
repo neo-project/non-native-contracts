@@ -5,5 +5,6 @@ namespace Neo.SmartContract
         public string Name;
         public RecordType Type;
         public string Data;
+        public byte ID;
     }
 }
