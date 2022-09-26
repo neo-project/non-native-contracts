@@ -434,8 +434,9 @@ namespace Neo.SmartContract
         public static void OnDeployment(object data, bool update)
         {
             if (update) return;
-            string neo = "neo";
-            string ngd = "ngd";
+            string neoRoot = "neo";
+            string neo = "neo.neo";
+            string ngd = "ngd.neo";
             StorageContext context = Storage.CurrentContext;
             Storage.Put(context, new byte[] { Prefix_TotalSupply }, 0);
             Storage.Put(context, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(new long[]
@@ -450,7 +451,7 @@ namespace Neo.SmartContract
             StorageMap accountMap = new(context, Prefix_AccountToken);
             StorageMap rootMap = new(context, Prefix_Root);
             StorageMap nameMap = new(context, Prefix_Name);
-            rootMap.Put(neo, 0);
+            rootMap.Put(neoRoot, 0);
             ByteString tokenKey = GetKey(neo);
             NameState token;
             byte[] key = new byte[] { Prefix_TotalSupply };
