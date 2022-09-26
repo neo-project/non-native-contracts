@@ -48,6 +48,9 @@ namespace Neo.SmartContract
         [Safe]
         public static BigInteger TotalSupply() => (BigInteger)Storage.Get(Storage.CurrentContext, new byte[] { Prefix_TotalSupply });
 
+        [InitialValue("Nj39M97Rk2e23JiULBBMQmvpcnKaRHqxFf", ContractParameterType.Hash160)]
+        public static UInt160 NeoOwner = default;
+
         [Safe]
         public static UInt160 OwnerOf(ByteString tokenId)
         {
@@ -431,6 +434,8 @@ namespace Neo.SmartContract
         public static void OnDeployment(object data, bool update)
         {
             if (update) return;
+            string neo = "neo";
+            string ngd = "ngd";
             StorageContext context = Storage.CurrentContext;
             Storage.Put(context, new byte[] { Prefix_TotalSupply }, 0);
             Storage.Put(context, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(new long[]
@@ -441,6 +446,44 @@ namespace Neo.SmartContract
                 -1,         // Domain names with a length of 3 are not open for registration by default.
                 -1,         // Domain names with a length of 4 are not open for registration by default.
             }));
+            StorageMap balanceMap = new(context, Prefix_Balance);
+            StorageMap accountMap = new(context, Prefix_AccountToken);
+            StorageMap rootMap = new(context, Prefix_Root);
+            StorageMap nameMap = new(context, Prefix_Name);
+            rootMap.Put(neo, 0);
+            ByteString tokenKey = GetKey(neo);
+            NameState token;
+            byte[] key = new byte[] { Prefix_TotalSupply };
+            BigInteger totalSupply = (BigInteger)Storage.Get(context, key);
+            Storage.Put(context, key, totalSupply + 1);
+            token = new()
+            {
+                Owner = NeoOwner,
+                Name = neo,
+                Expiration = Runtime.Time + TenYears
+            };
+            nameMap[tokenKey] = StdLib.Serialize(token);
+            BigInteger ownerBalance = (BigInteger)balanceMap[NeoOwner];
+            ownerBalance++;
+            balanceMap.Put(NeoOwner, ownerBalance);
+            accountMap[NeoOwner + tokenKey] = neo;
+            PostTransfer(null, NeoOwner, neo, null);
+
+            tokenKey = GetKey(ngd);
+            totalSupply = (BigInteger)Storage.Get(context, key);
+            Storage.Put(context, key, totalSupply + 1);
+            token = new()
+            {
+                Owner = NeoOwner,
+                Name = ngd,
+                Expiration = Runtime.Time + TenYears
+            };
+            nameMap[tokenKey] = StdLib.Serialize(token);
+            ownerBalance = (BigInteger)balanceMap[NeoOwner];
+            ownerBalance++;
+            balanceMap.Put(NeoOwner, ownerBalance);
+            accountMap[NeoOwner + tokenKey] = ngd;
+            PostTransfer(null, NeoOwner, ngd, null);
         }
 
         private static void CheckCommittee()
