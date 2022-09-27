@@ -9,6 +9,7 @@ namespace Neo.SmartContract
         public string Name;
         public ulong Expiration;
         public UInt160 Admin;
+        public string Image = "https://neo3.azureedge.net/images/neons.png";
 
         public void EnsureNotExpired()
         {
