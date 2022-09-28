@@ -440,11 +440,11 @@ namespace Neo.SmartContract
             Storage.Put(context, new byte[] { Prefix_TotalSupply }, pre_registration.Length);
             Storage.Put(context, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(new long[]
             {
-                2_00000000, // Prices for all other length domain names.
-                -1,         // Domain names with a length of 1 are not open for registration by default.
-                -1,         // Domain names with a length of 2 are not open for registration by default.
-                200_00000000,         // Domain names with a length of 3 are not open for registration by default.
-                70_00000000,         // Domain names with a length of 4 are not open for registration by default.
+                2_00000000,     // Prices for all other length domain names.
+                -1,             // Domain names with a length of 1 are not open for registration by default.
+                -1,             // Domain names with a length of 2 are not open for registration by default.
+                200_00000000,   // Domain names with a length of 3 are not open for registration by default.
+                70_00000000,    // Domain names with a length of 4 are not open for registration by default.
             }));
 
             StorageMap balanceMap = new(context, Prefix_Balance);
