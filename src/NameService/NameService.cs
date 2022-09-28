@@ -452,21 +452,22 @@ namespace Neo.SmartContract
             StorageMap rootMap = new(context, Prefix_Root);
             StorageMap nameMap = new(context, Prefix_Name);
             rootMap.Put("neo", 0);
-            foreach (string name in pre_registration)
+            if (pre_registration.Length > 0)
             {
-                ByteString tokenKey = GetKey(name);
-                NameState token = new()
+                balanceMap.Put(PreRegistrationOwner, pre_registration.Length);
+                foreach (string name in pre_registration)
                 {
-                    Owner = PreRegistrationOwner,
-                    Name = name,
-                    Expiration = Runtime.Time + TenYears
-                };
-                nameMap[tokenKey] = StdLib.Serialize(token);
-                BigInteger ownerBalance = (BigInteger)balanceMap[PreRegistrationOwner];
-                ownerBalance++;
-                balanceMap.Put(PreRegistrationOwner, ownerBalance);
-                accountMap[PreRegistrationOwner + tokenKey] = name;
-                PostTransfer(null, PreRegistrationOwner, name, null);
+                    ByteString tokenKey = GetKey(name);
+                    NameState token = new()
+                    {
+                        Owner = PreRegistrationOwner,
+                        Name = name,
+                        Expiration = Runtime.Time + TenYears
+                    };
+                    nameMap[tokenKey] = StdLib.Serialize(token);
+                    accountMap[PreRegistrationOwner + tokenKey] = name;
+                    PostTransfer(null, PreRegistrationOwner, name, null);
+                }
             }
         }
 
