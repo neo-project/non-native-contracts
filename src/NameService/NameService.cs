@@ -51,6 +51,9 @@ namespace Neo.SmartContract
         [Safe]
         public static BigInteger TotalSupply() => (BigInteger)Storage.Get(Storage.CurrentContext, new byte[] { Prefix_TotalSupply });
 
+        [InitialValue("Nj39M97Rk2e23JiULBBMQmvpcnKaRHqxFf", ContractParameterType.Hash160)]
+        private static readonly UInt160 PreRegistrationOwner = default;
+
         [Safe]
         public static UInt160 OwnerOf(ByteString tokenId)
         {
@@ -70,6 +73,7 @@ namespace Neo.SmartContract
             map["name"] = token.Name;
             map["expiration"] = token.Expiration;
             map["admin"] = token.Admin;
+            map["image"] = "https://neo3.azureedge.net/images/neons.png";
             return map;
         }
 
@@ -436,16 +440,40 @@ namespace Neo.SmartContract
         public static void OnDeployment(object data, bool update)
         {
             if (update) return;
+            string[] pre_registration = { "neo.neo", "ngd.neo" };
             StorageContext context = Storage.CurrentContext;
-            Storage.Put(context, new byte[] { Prefix_TotalSupply }, 0);
+            Storage.Put(context, new byte[] { Prefix_TotalSupply }, pre_registration.Length);
             Storage.Put(context, new byte[] { Prefix_RegisterPrice }, StdLib.Serialize(new long[]
             {
-                1_00000000, // Prices for all other length domain names.
-                -1,         // Domain names with a length of 1 are not open for registration by default.
-                -1,         // Domain names with a length of 2 are not open for registration by default.
-                -1,         // Domain names with a length of 3 are not open for registration by default.
-                -1,         // Domain names with a length of 4 are not open for registration by default.
+                2_00000000,     // Prices for all other length domain names.
+                -1,             // Domain names with a length of 1 are not open for registration by default.
+                -1,             // Domain names with a length of 2 are not open for registration by default.
+                200_00000000,   // Domain names with a length of 3 are not open for registration by default.
+                70_00000000,    // Domain names with a length of 4 are not open for registration by default.
             }));
+
+            StorageMap balanceMap = new(context, Prefix_Balance);
+            StorageMap accountMap = new(context, Prefix_AccountToken);
+            StorageMap rootMap = new(context, Prefix_Root);
+            StorageMap nameMap = new(context, Prefix_Name);
+            rootMap.Put("neo", 0);
+            if (pre_registration.Length > 0)
+            {
+                balanceMap.Put(PreRegistrationOwner, pre_registration.Length);
+                foreach (string name in pre_registration)
+                {
+                    ByteString tokenKey = GetKey(name);
+                    NameState token = new()
+                    {
+                        Owner = PreRegistrationOwner,
+                        Name = name,
+                        Expiration = Runtime.Time + TenYears
+                    };
+                    nameMap[tokenKey] = StdLib.Serialize(token);
+                    accountMap[PreRegistrationOwner + tokenKey] = name;
+                    PostTransfer(null, PreRegistrationOwner, name, null);
+                }
+            }
         }
 
         private static void CheckCommittee()
