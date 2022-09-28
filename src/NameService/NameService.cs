@@ -70,7 +70,7 @@ namespace Neo.SmartContract
             map["name"] = token.Name;
             map["expiration"] = token.Expiration;
             map["admin"] = token.Admin;
-            map["image"] = token.Image;
+            map["image"] = "https://neo3.azureedge.net/images/neons.png";
             return map;
         }
 
